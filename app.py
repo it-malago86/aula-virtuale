@@ -1,17 +1,18 @@
 import redis
 import datetime
 import os
-from flask import Flask, render_template_string, request, redirect, url_for, session
+from flask import Flask, render_template_string, request, redirect, url_for, session, redirect, url_for, flash
 from functools import wraps
-from dotenv import load_dotnenv
+from dotenv import load_dotenv
 
 load_dotenv()
+print(f"DEBUG: La pass admin caricata è: {os.getenv('ADMIN_PASSWORD')}")
 
 ADMIN_PASS = os.getenv("ADMIN_PASSWORD", "default_di_emergenza")
 STUDENT_PASS = os.getenv("STUDENT_PASSWORD", "default_di_emergenza")
 
 app = Flask(__name__)
-app.secret_key = os.getenv "FLASK_SECRET_KEY"
+app.secret_key = os.getenv("FLASK_SECRET_KEY")
 db = redis.Redis(host='database', port=6379, decode_responses=True)
 
 RESOURCES = {
@@ -19,7 +20,7 @@ RESOURCES = {
     "Esercizi": "https://link-esercizi.com",
     "Grammatica": "https://link-grammatica.com",
     "Libri": "https://link-libri.com",
-    "Video": "https:https://www.youtube.com/@lucreziaoddone"
+    "Video": "https:https://www.youtube.com/@lucreziaoddone",
     "Scrittura": "https://link-scrittura.com",
     "Giochi": "https://link-giochi.com"
 }
@@ -150,12 +151,54 @@ def wipe(tipo):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        u, p = request.form.get('username'), request.form.get('password')
-        if (u == 'admin' and p == 'ADMIN_PASS') or (p == 'STUDENT_PASS' and u):
-            session['username'], session['is_admin'] = (u, u == 'admin')
-            return redirect(url_for('index'))
-    return render_template_string("<html><head>{{s|safe}}</head><body style='display:flex; align-items:center; justify-content:center;'><div class='card' style='width:300px;'><form method='POST'><h2>Login</h2><input name='username' placeholder='Nome'><input type='password' name='password' placeholder='Pass'><button class='btn btn-primary' style='width:100%'>Entra</button></form></div></body></html>", s=STYLE)
+        u = request.form.get('username')
+        p = request.form.get('password')
 
+        # CONTROLLO: Assicurati che ADMIN_PASS e STUDENT_PASS siano caricate da os.getenv
+        if (u == 'admin' and p == ADMIN_PASS) or (u and p == STUDENT_PASS):
+            session['username'] = u
+            session['is_admin'] = (u == 'admin')
+            return redirect(url_for('index'))
+        else:
+            flash("Credenziali errate, riprova")
+            return redirect(url_for('login')) # Ricarica per mostrare il flash
+
+    # Questo blocco deve essere indentato di 4 spazi rispetto a "def login"
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Login Aula Virtuale</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+            .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.1); width: 100%; max-width: 350px; text-align: center; }
+            h2 { color: #1c1e21; margin-bottom: 1.5rem; }
+            input { width: 100%; padding: 12px; margin-bottom: 1rem; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+            button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.3s; }
+            button:hover { background-color: #0056b3; }
+            .error-box { background-color: #ffebe9; color: #d73a49; padding: 10px; border: 1px solid rgba(215,58,73,0.4); border-radius: 6px; margin-bottom: 1rem; font-size: 14px; }
+        </style>
+    </head>
+    <body>
+        {% with messages = get_flashed_messages() %}
+          {% if messages %}
+            {% for message in messages %}
+              <div class="error-box">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+        <div class="card">
+            <h2>Accedi all'Aula</h2>
+            <form method="POST">
+                <input type="text" name="username" placeholder="Username" required>
+                <input type="password" name="password" placeholder="Password" required>
+                <button type="submit">Entra</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """)
 @app.route('/set_live', methods=['POST'])
 def set_live():
     if session.get('is_admin'): db.set('aula_live', request.form.get('live_url'))
