@@ -1,0 +1,35 @@
+services:
+  nginx:
+    container_name: web-proxy
+    image: nginx:latest
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+
+  app:
+    container_name: flask-app
+    build: .
+    environment:
+      - REDIS_HOST=database
+    depends_on:
+      - database
+
+  database:
+    container_name: redis-db
+    image: redis:alpine
+    volumes:
+      - redis_data:/data
+
+  dozzle:
+    container_name: monitor-log
+    image: amir20/dozzle:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    ports:
+      - "8888:8080"
+
+volumes:
+  redis_data:
